@@ -1,0 +1,65 @@
+#!/bin/bash
+
+# Copyright (C) 2017 Andreas Bader <development -(at)- geekparadise.de>
+#
+# This module is free software: you can redistribute it and/or modify it under
+# the terms of the GNU General Public License as published by the Free Software
+# Foundation, either version 3 of the License, or (at your option) any later
+# version.
+#
+# This software is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+# FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License along with
+# this program. If not, see <http://www.gnu.org/licenses/>.
+
+# make sure that influx tool is installed!
+
+PLUGINDIR=$(dirname $0)
+. $PLUGINDIR/utils.sh
+
+
+if [ $# -ne 8 ]; then
+    echo "Usage: ${0##*/} <host> <port> <database name> <username> <password> <measurement name> <time in seconds between runs that is not warning> <time in seconds between runs thar is not critical>" >&2
+    exit $STATE_UNKNOWN
+fi
+
+host=$1
+port=$2
+db=$3
+user=$4
+pw=$5
+measurement=$6
+warning=$7
+critical=$8
+
+result=$(influx -host "$host" -port "$port" -database "$db" -username "$user" -password "$pw" -execute "select COUNT(*) from $measurement where  time > now() - ${warning}s")
+result_value=$?
+if [ $result_value -ne 0 ]; then
+    echo "ERROR: could not connect to influxdb, error was: $result."
+    exit $STATE_CRITICAL
+fi
+count=$(echo $result | grep -E "^[0-9]+\s[0-9]+$" | grep -o -E "\s[0-9]+$" | sed "s/^\s//g")
+if [ $count -gt 0 ]; then
+    echo "OK: measurement $measurement in $db on ${host}:${port} has received $count values in the last $warning seconds."
+    exit $STATE_OK
+elif [ $count -eq 0 ]; then
+    result2=$(influx -host "$host" -port "$port" -database "$db" -username "$user" -password "$pw" -execute "select COUNT(*) from \"$measurement\" where  time > now() - ${critical}s")
+    result_value2=$?
+    if [ $result_value2 -ne 0 ]; then
+        echo "ERROR: could not connect to influxdb, error was: $result2."
+        exit $STATE_CRITICAL
+    fi
+    count2=$(echo $result2 | grep -E "^[0-9]+\s[0-9]+$" | grep -o -E "\s[0-9]+$" | sed "s/^\s//g")
+    if [ $count2 -gt 0 ]; then
+        echo "WARNING: measurement $measurement has received $count values in the last $warning seconds and $count2 values in the last $critical seconds."
+        exit $STATE_WARNING
+    else
+        echo "ERROR: measurement $measurement has received $count values $count2 values in the last $critical seconds."
+        exit $STATE_CRITICAL
+    fi
+fi
+
+echo "UNKNOWN: an unknown error occured."
+exit $STATE_UNKNOWN
