@@ -35,6 +35,16 @@ warning=$7
 critical=$8
 now=$(date +%s)
 
+result=$(influx -host "$host" -port "$port" -database "$db" -username "$user" -password "$pw" -execute "show measurements" | grep $measurement | wc -l)
+if [ $result -eq 0 ]; then
+    echo "ERROR: $measurement does not exist in $db."
+    exit $STATE_CRITICAL
+fi
+if [ $result -gt 1 ]; then
+    echo "ERROR: more than 1 $measurement exist in $db."
+    exit $STATE_CRITICAL
+fi
+
 result=$(influx -host "$host" -port "$port" -database "$db" -username "$user" -password "$pw" -precision s -execute "select LAST(value) from \"$measurement\"")
 result_value=$?
 if [ $result_value -ne 0 ]; then
