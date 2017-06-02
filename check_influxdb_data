@@ -35,7 +35,7 @@ warning=$7
 critical=$8
 now=$(date +%s)
 
-result=$(influx -host "$host" -port "$port" -database "$db" -username "$user" -password "$pw" -precision s -execute "select LAST(value) from $measurement")
+result=$(influx -host "$host" -port "$port" -database "$db" -username "$user" -password "$pw" -precision s -execute "select LAST(value) from \"$measurement\"")
 result_value=$?
 if [ $result_value -ne 0 ]; then
     echo "ERROR: could not connect to influxdb, error was: $result."
